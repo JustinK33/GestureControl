@@ -59,18 +59,19 @@ A real-time computer vision app that detects faces and hand landmarks from a web
 
 ### To run the project locally, follow these steps:
 
-1. Clone the repo  
-   ```bash
-   git clone <url>
+```bash
+# 1. Clone the repo
+git clone <url>
+cd GestureControl
 
-2. Create a virtual environment
-  python3 -m venv venv
+# 2. Create conda environment
+conda create -n gesturecontrol python=3.10 -y
 
-3. Activate the environment
-  source venv/bin/activate
+# 3. Activate environment
+conda activate gesturecontrol
 
-4. Install requirements
-  pip install -r requirements.txt
+# 4. Install requirements
+pip install -r requirements.txt
 
-5. Run the app
-  python main.py
+# 5. Run the app
+python main.py
