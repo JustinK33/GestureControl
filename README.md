@@ -62,3 +62,15 @@ A real-time computer vision app that detects faces and hand landmarks from a web
 1. Clone the repo  
    ```bash
    git clone <url>
+
+2. Create a virtual environment
+  python3 -m venv venv
+
+3. Activate the environment
+  source venv/bin/activate
+
+4. Install requirements
+  pip install -r requirements.txt
+
+5. Run the app
+  python main.py
