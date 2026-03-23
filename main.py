@@ -3,11 +3,20 @@ import mediapipe as mp
 import pyautogui
 import time
 import math
+from collections import deque
 
 cap = cv2.VideoCapture(0) # 0 means default webcam
 success, frame = cap.read() # reads one frame
 last_boxes = []
 latest_hand_result = None
+
+# Cursor smoothing
+CURSOR_SMOOTHING_ALPHA = 0.3  # Lower = more smoothing (0.1-0.5 range recommended)
+last_cursor_pos = None
+
+# Click stabilization
+PINCH_HYSTERESIS_RATIO = 1.3  # Upper threshold = threshold * ratio
+was_pinched = False
 
 if not success:
     print("could not read from camera")
@@ -79,7 +88,36 @@ def move_mouse_with_index(hand_landmarks, screen_w, screen_h):
     index_tip = hand_landmarks[8]
     screen_mouse_x = int((1 - index_tip.x) * screen_w)
     screen_mouse_y = int(index_tip.y * screen_h)
-    pyautogui.moveTo(screen_mouse_x, screen_mouse_y)
+    return (screen_mouse_x, screen_mouse_y)
+
+
+def smooth_cursor(target_x, target_y, alpha=CURSOR_SMOOTHING_ALPHA):
+    global last_cursor_pos
+    if last_cursor_pos is None:
+        last_cursor_pos = (target_x, target_y)
+        return last_cursor_pos
+    
+    smoothed_x = int(alpha * target_x + (1 - alpha) * last_cursor_pos[0])
+    smoothed_y = int(alpha * target_y + (1 - alpha) * last_cursor_pos[1])
+    last_cursor_pos = (smoothed_x, smoothed_y)
+    return last_cursor_pos
+
+
+def maybe_click_stabilized(distance, threshold, current_time, last_click_time, cooldown_ms):
+    global was_pinched
+    upper_threshold = threshold * PINCH_HYSTERESIS_RATIO
+    
+    # Transition from not-pinched to pinched
+    if not was_pinched and distance < threshold:
+        was_pinched = True
+        if (current_time - last_click_time) > cooldown_ms:
+            pyautogui.click()
+            return current_time
+    # Transition out of pinch (hysteresis)
+    elif was_pinched and distance > upper_threshold:
+        was_pinched = False
+    
+    return last_click_time
 
 
 def get_pinch_distance(hand_landmarks, frame_w, frame_h):
@@ -148,12 +186,14 @@ with HandLandmarker.create_from_options(options) as landmarker: # initalizes the
         if latest_hand_result is not None and latest_hand_result.hand_landmarks:
             for hand_landmarks in latest_hand_result.hand_landmarks:  # type: ignore
                 draw_hand_landmarks(frame, hand_landmarks, frame_w, frame_h)
-                move_mouse_with_index(hand_landmarks, screen_w, screen_h)
+                cursor_pos = move_mouse_with_index(hand_landmarks, screen_w, screen_h)
+                smoothed_pos = smooth_cursor(cursor_pos[0], cursor_pos[1])
+                pyautogui.moveTo(smoothed_pos[0], smoothed_pos[1])
 
                 distance = get_pinch_distance(hand_landmarks, frame_w, frame_h)
                 threshold = get_pinch_threshold(hand_landmarks, frame_w, frame_h)
 
-                last_click_time = maybe_click(
+                last_click_time = maybe_click_stabilized(
                     distance=distance,
                     threshold=threshold,
                     current_time=frame_timestamp_ms,
